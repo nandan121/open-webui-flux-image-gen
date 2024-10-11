@@ -22,6 +22,7 @@ This repository contains the implementation of the FLUX.1 Schnell Manifold Funct
 
 2. Install via official Open WebUI community functions repository:
 
+[flux_schnell](https://openwebui.com/f/bgeneto/flux_schnell)
 
 ## Environment Variables
 
@@ -40,3 +41,4 @@ export FLUX_SCHNELL_API_KEY="your_together_api_key_here"
 ```
 
 Screenshots:
+![image](https://github.com/user-attachments/assets/9219f626-e269-4906-a913-133e4113c10e)
