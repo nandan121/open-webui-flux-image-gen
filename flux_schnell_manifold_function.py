@@ -1,6 +1,7 @@
 """
 title: FLUX.1 Schnell Manifold Function for Black Forest Lab Image Generation Models
-authors: bgeneto
+author: bgeneto
+author_url: https://github.com/bgeneto/open-webui-flux-image-gen
 funding_url: https://github.com/open-webui
 version: 0.1.4
 license: MIT
@@ -10,6 +11,7 @@ supported providers: huggingface.co, replicate.com, together.xyz
 https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell
 https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions
 https://api.together.xyz/v1/images/generations
+https://api.hyperbolic.xyz/v1/image/generation
 """
 
 import base64
@@ -38,13 +40,17 @@ class Pipe:
             default="https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions",
             description="Base URL for the API",
         )
+        BEFORE_INPUT_STRING: str = Field(
+            default='"version": "5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637",',
+            description="before the input example for replicate.com https://replicate.com/bytedance/sdxl-lightning-4step/api",
+        )
 
     def __init__(self):
         """
         Initialize the Pipe class with default values and environment variables.
         """
         self.type = "manifold"
-        self.id = "FLUX.1[schnell]"
+        self.id = "FLUX_Schnell"
         self.name = "FLUX.1: "
         self.valves = self.Valves(
             FLUX_SCHNELL_API_KEY=os.getenv("FLUX_SCHNELL_API_KEY", ""),
@@ -110,11 +116,12 @@ class Pipe:
         """
         resp = response.json()
         if "output" in resp:
-            img_data = resp["output"][0]
+            img_url = resp["output"][0]
+            img_data = self.url_to_img_data(img_url)
         elif "data" in resp and "b64_json" in resp["data"][0]:
             img_data = resp["data"][0]["b64_json"]
         else:
-            return "Error: Unexpected response format for the image provider!"
+            return "Error: Unexpected response format for the image provider! {resp}"
 
         # split ;base64, from img_data
         try:
@@ -124,7 +131,7 @@ class Pipe:
 
         img_ext = self.get_img_extension(img_data[:9])
         if not img_ext:
-            return "Error: Unsupported image format!"
+            return f"Error: Unsupported image format! \n\n {resp} \n\n {img_data}"
 
         # rebuild img_data with proper format
         img_data = f"data:image/{img_ext};base64,{img_data}"
@@ -217,28 +224,45 @@ class Pipe:
             "huggingface.co": {"x-wait-for-model": "true"},
             "replicate.com": {"Prefer": "wait"},
             "together.xyz": {},
+            "hyperbolic.xyz": {},
         }
 
         payload_map = {
             "huggingface.co": {"inputs": prompt},
             "replicate.com": {
-                "input": {
-                    "prompt": prompt,
-                    "go_fast": True,
-                    "num_outputs": 1,
-                    "aspect_ratio": "1:1",
-                    "output_format": "webp",
-                    "output_quality": 90,
+                **{
+                    # Insert the version string from BEFORE_INPUT_STRING
+                    **eval(
+                        f"{{{self.valves.BEFORE_INPUT_STRING}}}"
+                    ),  # Use eval to parse the string as a dictionary
+                    "input": {
+                        "prompt": prompt,
+                        "go_fast": True,
+                        "num_outputs": 1,
+                        "aspect_ratio": "1:1",
+                        "output_format": "webp",
+                        "output_quality": 90,
+                    },
                 }
             },
             "together.xyz": {
-                "model": "black-forest-labs/FLUX.1-schnell",
+                "model": "black-forest-labs/FLUX.1-schnell-Free",
                 "prompt": prompt,
                 "width": 1024,
                 "height": 1024,
                 "steps": 4,
                 "n": 1,
                 "response_format": "b64_json",
+            },
+            "hyperbolic.xyz": {
+                "model_name": "FLUX.1-dev",
+                "prompt": prompt,
+                "steps": 25,
+                "cfg_scale": 5,
+                "enable_refiner": False,
+                "height": 1024,
+                "width": 1024,
+                "backend": "auto",
             },
         }
 
